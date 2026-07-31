@@ -115,14 +115,9 @@ ComfyUI-React-Extension-Template/
     │   ├── index.css           # Global styles and theme variables
     │   ├── main.tsx            # Entry point for React app
     │   ├── vite-env.d.ts       # Vite environment types
-    │   ├── setupTests.ts       # Testing environment setup
-    │   ├── __tests__/          # Unit tests for components
-    │   │   └── dummy.test.tsx  # Example test
     │   └── utils/
     │       └── i18n.ts         # Internationalization setup
     ├── eslint.config.js        # ESLint configuration
-    ├── jest.config.js          # Jest testing configuration
-    ├── jest.setup.js           # Jest setup file
     ├── package.json            # npm dependencies
     ├── tsconfig.json           # TypeScript configuration
     ├── tsconfig.node.json      # TypeScript configuration for Node
@@ -190,24 +185,6 @@ The workflow automatically:
 3. Builds the React extension (`npm run build`)
 4. Publishes the extension to the ComfyUI Registry
 
-## Unit Testing
-
-This template includes a basic setup for unit testing with Jest and React Testing Library:
-
-```bash
-# Run tests
-npm test
-
-# Run tests in watch mode during development
-npm run test:watch
-```
-
-Example tests can be found in the `src/__tests__` directory. The setup includes:
-
-- Jest for running tests
-- React Testing Library for testing components
-- Mock implementation of the ComfyUI window.app object
-
 ## Resources
 
 - [ComfyUI JS Extension Documentation](https://docs.comfy.org/custom-nodes/js/javascript_overview) - Official documentation for ComfyUI JavaScript Extensions
@@ -217,8 +194,6 @@ Example tests can be found in the `src/__tests__` directory. The setup includes:
 - [React Extension Guide](REACT_EXTENSION_GUIDE.md) - Detailed guide for creating React extensions
 - [TypeScript Documentation](https://www.typescriptlang.org/docs/)
 - [React Documentation](https://react.dev/reference/react)
-- [Jest Documentation](https://jestjs.io/docs/getting-started)
-- [React Testing Library](https://testing-library.com/docs/react-testing-library/intro/)
 
 ## Contributing
 
