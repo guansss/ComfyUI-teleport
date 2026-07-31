@@ -1,12 +1,7 @@
 {
-  "singleQuote": true,
   "tabWidth": 2,
   "semi": false,
-  "trailingComma": "none",
-  "printWidth": 80,
-  "importOrder": ["^@core/(.*)$", "<THIRD_PARTY_MODULES>", "^@/(.*)$", "^[./]"],
-  "importOrderSeparation": true,
-  "importOrderSortSpecifiers": true,
+  "printWidth": 100,
   "overrides": [
     {
       "files": "*.{js,cjs,mjs,ts,cts,mts,tsx,vue}",
