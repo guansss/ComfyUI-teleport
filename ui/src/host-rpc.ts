@@ -1,10 +1,19 @@
 import type { ClientFunctions } from "./client/client-rpc"
 import { createRpc } from "./utils/rpc"
 
-// using a class since decorators can only be used in classes (currently)
+let latestImage = ""
+
 const hostFunctions = new (class HostRpc {
-  async initClient() {
-    await hostRpc.ping()
+  async ping() {
+    return "pong"
+  }
+
+  async registerClient() {
+    if (latestImage) {
+      await hostRpc.ignoreTimeout.updateImage(latestImage)
+    }
+
+    return latestImage
   }
 })()
 
@@ -13,3 +22,8 @@ export type HostFunctions = {
 }
 
 export const hostRpc = createRpc<ClientFunctions, HostFunctions>(hostFunctions)
+
+export async function pushImageToClient(imageUrl: string) {
+  latestImage = imageUrl
+  await hostRpc.ignoreTimeout.updateImage(imageUrl)
+}

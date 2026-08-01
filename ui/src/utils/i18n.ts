@@ -3,58 +3,17 @@ import LanguageDetector from "i18next-browser-languagedetector"
 import Backend from "i18next-http-backend"
 import { initReactI18next } from "react-i18next"
 
-// Define fallback translations for debugging
-interface TranslationResource {
-  [language: string]: {
-    [namespace: string]: {
-      app: {
-        title: string
-        description: string
-        noNodes: string
-        nodeList: {
-          title: string
-          id: string
-          type: string
-          category: string
-          inputs: string
-          outputs: string
-        }
-        nodeStats: {
-          title: string
-          totalNodes: string
-          uniqueNodeTypes: string
-        }
-        footer: {
-          clickToHighlight: string
-        }
-      }
-    }
-  }
-}
+type FallbackResources = Record<string, Record<string, Record<string, unknown>>>
 
-const fallbackResources: TranslationResource = {
+const fallbackResources: FallbackResources = {
   en: {
     main: {
       app: {
-        title: "React Example Extension (Fallback)",
-        description: "Shows statistics about nodes in the current workflow",
-        noNodes: "No nodes in the workflow",
-        nodeList: {
-          title: "Node List",
-          id: "ID",
-          type: "Type",
-          category: "Category",
-          inputs: "Inputs",
-          outputs: "Outputs",
-        },
-        nodeStats: {
-          title: "Node Statistics",
-          totalNodes: "Total nodes",
-          uniqueNodeTypes: "Unique node types",
-        },
-        footer: {
-          clickToHighlight: "Click on any node in the list to highlight it in the workflow",
-        },
+        title: "Teleport Viewer",
+        connecting: "Connecting to host...",
+        connected: "Connected",
+        disconnected: "Disconnected. Retrying...",
+        waiting: "Waiting for image stream...",
       },
     },
   },
@@ -70,8 +29,7 @@ void i18n
   .use(initReactI18next)
   // Initialize i18next
   .init({
-    // Always enable debug mode to see what's happening
-    debug: true,
+    debug: false,
 
     // Fallback language
     fallbackLng: "en",
@@ -84,10 +42,7 @@ void i18n
     initImmediate: true,
 
     // Custom handling for missing keys
-    saveMissing: true,
-    missingKeyHandler: (lng, ns, key) => {
-      console.log(`Missing translation: [${lng}] ${ns}:${key}`)
-    },
+    saveMissing: false,
 
     // Language detection configuration
     detection: {
@@ -112,6 +67,8 @@ void i18n
     react: {
       useSuspense: true,
     },
+
+    resources: fallbackResources,
 
     // Allow string formatting for dynamic values
     interpolation: {

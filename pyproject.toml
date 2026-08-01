@@ -1,16 +1,16 @@
 [project]
-name = "comfyui_react_extension_template"
-description = "A minimal template for creating React/TypeScript frontend extensions for ComfyUI, with complete boilerplate setup including internationalization and unit testing."
+name = "comfyui-teleport"
+description = "A ComfyUI extension that teleports image previews to a separate live-updating browser window."
 version = "0.1.0"
 license = {file = "LICENSE"}
 dependencies = []
 
 [project.urls]
-Repository = "https://github.com/Comfy-Org/ComfyUI-React-Extension-Template"
+Repository = "https://github.com/guansss/ComfyUI-teleport"
 
 # Used by Comfy Registry https://comfyregistry.org
 [tool.comfy]
 PublisherId = "your_publisher_id" # Change this to your actual publisher ID
-DisplayName = "ComfyUI React Extension Template"
+DisplayName = "ComfyUI Teleport"
 Icon = ""
 includes = ["dist/"]

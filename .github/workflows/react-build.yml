@@ -1,4 +1,4 @@
-name: React Extension Build + Publish to Comfy Registry
+name: Teleport Build + Publish to Comfy Registry
 
 on:
   push:
@@ -9,7 +9,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    if: ${{ github.repository_owner == 'Comfy-Org' }}
+    if: ${{ github.repository_owner == 'guansss' }}
 
     strategy:
       matrix:
@@ -28,7 +28,7 @@ jobs:
         cd ui
         npm install
 
-    - name: Build React extension
+    - name: Build Teleport frontend
       run: |
         cd ui
         npm run build

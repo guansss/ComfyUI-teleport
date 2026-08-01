@@ -34,13 +34,14 @@ export default defineConfig(({ mode }) => ({
       external: ["/scripts/app.js", "/scripts/api.js"],
       input: {
         main: path.resolve(__dirname, "src/main.tsx"),
+        client: path.resolve(__dirname, "src/client/client.tsx"),
       },
       output: {
-        // Output to the dist/example_ext directory
+        // Output to the dist directory served by ComfyUI.
         dir: "../dist",
-        entryFileNames: "example_ext/[name].js",
-        chunkFileNames: "example_ext/[name]-[hash].js",
-        assetFileNames: "example_ext/[name][extname]",
+        entryFileNames: "[name].js",
+        chunkFileNames: "[name]-[hash].js",
+        assetFileNames: "[name][extname]",
         // Split React into a separate vendor chunk for better caching
         manualChunks: {
           vendor: ["react", "react-dom"],

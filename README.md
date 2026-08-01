@@ -1,203 +1,69 @@
-# ComfyUI React Extension Template
+# ComfyUI Teleport
 
-![react-example-demo](https://github.com/Comfy-Org/ComfyUI-React-Extension-Template/blob/assets-branch/docs/demo.gif)
-
-![demo pic](https://github.com/Comfy-Org/ComfyUI-React-Extension-Template/blob/assets-branch/react-example-demo.png)
-
-A minimal template for creating React/TypeScript frontend extensions for ComfyUI, with complete boilerplate setup.
-
-📚 **[ComfyUI JavaScript Developer Documentation](https://docs.comfy.org/custom-nodes/js/javascript_overview)** - Learn how to use ComfyUI's powerful extension APIs.
+ComfyUI Teleport is a custom node extension that mirrors image previews into a separate browser window.
 
 ## Features
 
-- **React & TypeScript Integration**: Ready-to-use setup for creating modern UI components within ComfyUI
-- **Internationalization Framework**: Built-in i18n support with English and Chinese examples
-- **ComfyUI API Integration**: Properly typed access to ComfyUI's internal API
-- **Full TypeScript Support**: Type-safe code using ComfyUI's official type definitions
-- **Auto-Reload Development**: Watch mode for seamless development experience
+- Adds a `Teleport` node to ComfyUI workflows.
+- Node input/output: `IMAGE -> IMAGE` (pass-through).
+- Adds an `Open Teleport Window` button directly on the node.
+- Streams the latest Teleport image to a dedicated viewer window.
+- Uses `birpc` + `BroadcastChannel` to keep host and client windows synced.
 
 ## Installation
 
-### From ComfyUI Registry (Recommended)
-
-The easiest way to install this extension is through the ComfyUI Manager:
-
-1. Open ComfyUI and go to the Manager
-2. Search for "React Extension Template"
-3. Click Install
-
 ### Manual Installation
 
-If you want to install directly from GitHub for development purposes:
-
 ```bash
-# Go to your ComfyUI custom_nodes directory
 cd ComfyUI/custom_nodes
-
-# Clone the repository
-git clone https://github.com/Comfy-Org/ComfyUI-React-Extension-Template.git
-
-# Build the React application
-cd ComfyUI-React-Extension-Template/ui
+git clone https://github.com/guansss/ComfyUI-teleport.git
+cd ComfyUI-teleport/ui
 npm install
 npm run build
-
-# Restart ComfyUI
 ```
 
-⚠️ **Important**: When installing manually from GitHub, you **must** run `npm run build` in the `ui/` directory before the extension will work. The extension requires the compiled React code in the `dist/` folder to function properly in ComfyUI.
+Restart ComfyUI after build completes.
 
 ## Usage
 
-This template includes a simple example extension that displays workflow node statistics. After installation:
-
-1. Look for the "React Example" tab in the ComfyUI sidebar
-2. Click to open the example UI
-
-When developing your own extension, you can:
-1. Replace the example UI in App.tsx with your own components
-2. Update the tab title and icon in main.tsx
-3. Customize the extension's appearance and behavior
+1. Add the `Teleport` node to your workflow.
+2. Connect an image output into the Teleport node input.
+3. Click `Open Teleport Window` on the node.
+4. Run the workflow. The separate Teleport window updates with the latest image.
 
 ## Development
 
-### Setup Development Environment
-
 ```bash
-# Go to the UI directory
 cd ui
-
-# Install dependencies
 npm install
-
-# Start development mode (watches for changes)
-npm run watch
+npm run build
 ```
 
-### Available ComfyUI Extension APIs
+Notes:
+- This repository currently targets manual verification only.
+- `PublisherId` in `pyproject.toml` is intentionally kept as a placeholder until publishing.
 
-This template provides access to ComfyUI's powerful JavaScript APIs through the official type definitions. You can use these APIs to build rich extensions:
+## Project Structure
 
-- **Sidebar Tabs**: Create custom sidebar panels like this template demonstrates
-- **Bottom Bar Panels**: Add panels to the bottom of the UI
-- **Top Menu Items**: Add custom entries to the top menu
-- **Context Menus**: Create custom context menus for the graph
-- **Settings**: Add settings to the ComfyUI settings panel
-- **Toasts**: Display notification messages
-- **Commands**: Create and register custom commands
-- **Hotkeys/Keybindings**: Register custom keyboard shortcuts
-- **About Panel Badges**: Add badges to the about panel
-- **App Events**: Listen to and respond to app events
-- **Graph Manipulation**: Programmatically manipulate the workflow graph
-
-For comprehensive documentation on all available APIs, see the [ComfyUI JavaScript Developer Documentation](https://docs.comfy.org/custom-nodes/js/javascript_overview).
-
-### File Structure
-
-```
-ComfyUI-React-Extension-Template/
-├── .github/                    # GitHub configurations
-│   └── workflows/
-│       └── react-build.yml     # Automatic build and publishing workflow
-├── __init__.py                 # Python entry point for ComfyUI integration
-├── pyproject.toml              # Project metadata for ComfyUI Registry
-├── dist/                       # Built extension files (generated)
-└── ui/                         # React application
+```text
+ComfyUI-teleport/
+├── __init__.py                 # ComfyUI node + static route registration
+├── pyproject.toml              # Comfy registry metadata
+├── dist/                       # Built frontend assets (generated)
+└── ui/
     ├── public/
-    │   └── locales/            # Internationalization files
-    │       ├── en/
-    │       │   └── main.json   # English translations
-    │       └── zh/
-    │           └── main.json   # Chinese translations
+    │   ├── client.html         # Viewer window shell
+    │   └── locales/
     ├── src/
-    │   ├── App.tsx             # Main React component with example UI
-    │   ├── App.css             # Styles for the example UI
-    │   ├── index.css           # Global styles and theme variables
-    │   ├── main.tsx            # Entry point for React app
-    │   ├── vite-env.d.ts       # Vite environment types
+    │   ├── main.tsx            # Teleport node frontend hooks
+    │   ├── host-rpc.ts         # Host-side RPC bridge
+    │   ├── client/
+    │   │   ├── client.tsx      # Teleport viewer app
+    │   │   └── client-rpc.ts   # Client-side RPC handlers
     │   └── utils/
-    │       └── i18n.ts         # Internationalization setup
-    ├── eslint.config.js        # ESLint configuration
-    ├── package.json            # npm dependencies
-    ├── tsconfig.json           # TypeScript configuration
-    ├── tsconfig.node.json      # TypeScript configuration for Node
-    └── vite.config.ts          # Build configuration
+    │       ├── i18n.ts
+    │       └── rpc.ts
 ```
-
-### TypeScript Support
-
-This extension uses the official `@comfyorg/comfyui-frontend-types` package for type-safe interaction with ComfyUI APIs. To install it:
-
-```bash
-cd ui
-npm install -D @comfyorg/comfyui-frontend-types
-```
-
-## Publishing to ComfyUI Registry
-
-### Prerequisites
-
-1. Set up a [Registry](https://registry.comfy.org) account
-2. Create an API key at https://registry.comfy.org/nodes
-
-### Steps to Publish
-
-1. Install the comfy-cli tool:
-   ```bash
-   pip install comfy-cli
-   ```
-
-2. Verify your pyproject.toml has the correct metadata:
-   ```toml
-   [project]
-   name = "your_extension_name"  # Use a unique name for your extension
-   description = "Your extension description here."
-   version = "0.1.0"  # Increment this with each update
-
-   [tool.comfy]
-   PublisherId = "your_publisher_id"  # Your Registry publisher ID
-   DisplayName = "Your Extension Display Name"
-   includes = ["dist/"]  # Include built React code (normally ignored by .gitignore)
-   ```
-
-3. Publish your extension:
-   ```bash
-   comfy-cli publish
-   ```
-
-4. When prompted, enter your API key
-
-### Automatic Publishing with GitHub Actions
-
-This template includes a GitHub Actions workflow that automatically publishes to the ComfyUI Registry whenever you update the version in pyproject.toml:
-
-1. Go to your repository's Settings > Secrets and variables > Actions
-2. Create a new repository secret called `REGISTRY_ACCESS_TOKEN` with your API key
-3. Commit and push an update to pyproject.toml (e.g., increment the version number)
-4. The GitHub Action will automatically run and publish your extension
-
-The workflow configuration is set up in `.github/workflows/react-build.yml` and will trigger when:
-- The `pyproject.toml` file is modified and pushed to the `main` branch
-
-The workflow automatically:
-1. Sets up Node.js environment
-2. Installs dependencies (`npm install`)
-3. Builds the React extension (`npm run build`)
-4. Publishes the extension to the ComfyUI Registry
-
-## Resources
-
-- [ComfyUI JS Extension Documentation](https://docs.comfy.org/custom-nodes/js/javascript_overview) - Official documentation for ComfyUI JavaScript Extensions
-- [ComfyUI Registry Documentation](https://docs.comfy.org/registry/publishing) - Learn how to publish your extension
-- [ComfyUI Frontend Repository](https://github.com/Comfy-Org/ComfyUI-Frontend) - The main ComfyUI frontend codebase
-- [Official ComfyUI Frontend Types](https://www.npmjs.com/package/@comfyorg/comfyui-frontend-types) - TypeScript definitions for ComfyUI
-- [React Extension Guide](REACT_EXTENSION_GUIDE.md) - Detailed guide for creating React extensions
-- [TypeScript Documentation](https://www.typescriptlang.org/docs/)
-- [React Documentation](https://react.dev/reference/react)
-
-## Contributing
-
-Contributions are welcome! Feel free to open issues or submit pull requests to improve this template.
 
 ## License
 

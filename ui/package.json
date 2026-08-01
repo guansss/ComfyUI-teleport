@@ -1,12 +1,12 @@
 {
-  "name": "comfyui-example-react-extension",
+  "name": "comfyui-teleport-ui",
   "private": true,
   "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
-    "watch": "tsc && vite build --watch",
+    "build": "vite build",
+    "watch": "vite build --watch",
     "lint": "eslint . --ext ts,tsx,js,jsx --report-unused-disable-directives --max-warnings 0",
     "lint:fix": "eslint . --ext ts,tsx,js,jsx --fix",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,css}\"",
@@ -14,16 +14,21 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@radix-ui/react-slot": "^1.1.0",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.1.1",
     "birpc": "^4.0.0",
     "i18next": "^23.10.2",
     "i18next-browser-languagedetector": "^7.2.2",
     "i18next-http-backend": "^2.5.0",
+    "lucide-react": "^0.468.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-i18next": "^14.1.0"
+    "react-i18next": "^14.1.0",
+    "tailwind-merge": "^2.5.5"
   },
   "devDependencies": {
-    "@comfyorg/comfyui-frontend-types": "^1.20.2",
+    "@comfyorg/comfyui-frontend-types": "^1.47.11",
     "@eslint/eslintrc": "^3.0.2",
     "@eslint/js": "^9.27.0",
     "@trivago/prettier-plugin-sort-imports": "^5.2.2",
@@ -41,6 +46,10 @@
     "globals": "^16.1.0",
     "identity-obj-proxy": "^3.0.0",
     "prettier": "^3.5.3",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "tailwindcss-animate": "^1.0.7",
     "typescript": "^5.4.2",
     "typescript-eslint": "^8.32.1",
     "vite": "^5.2.10"
