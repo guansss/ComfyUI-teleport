@@ -80,6 +80,10 @@ During development, the client window will load `client.tsx` via Vite's developm
 
 When the client window is establishing the connection, it will show a loading state. Once the connection is established, it will display the image received from the host window. If the connection is lost, the client window will show a disconnected state and attempt to reconnect.
 
+The displayed image will fill the entire client window. When there is no image, a placeholder message will be shown.
+
+The connection state indicator will be displayed in the top-right of the client window (floating above the image) when the connection is either loading or disconnected. When the connection is established, the connection state indicator will be hidden.
+
 ## References
 
 - [ComfyUI Custom Nodes Documentation](https://docs.comfy.org/custom-nodes/overview)

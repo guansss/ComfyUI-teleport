@@ -36,8 +36,10 @@
     @apply border-border;
   }
 
-  body {
-    @apply m-0 min-h-screen bg-background text-foreground;
+  html,
+  body,
+  #root {
+    @apply m-0 h-full overflow-hidden bg-background text-foreground;
     font-feature-settings:
       "rlig" 1,
       "calt" 1;
@@ -45,29 +47,30 @@
 }
 
 .teleport-client {
-  @apply flex min-h-screen items-center justify-center bg-background p-6;
-  background-image:
-    radial-gradient(circle at 5% 15%, hsl(var(--primary) / 0.16), transparent 30%),
-    radial-gradient(circle at 85% 90%, hsl(var(--primary) / 0.1), transparent 28%);
+  @apply h-full w-full bg-background;
 }
 
-.teleport-client__shell {
-  @apply w-full max-w-6xl;
-}
-
-.teleport-client__header-row {
-  @apply flex items-center justify-between gap-4;
-}
-
-.teleport-client__content {
-  @apply overflow-hidden rounded-md border bg-muted;
-  min-height: calc(100vh - 18rem);
+.teleport-client__viewport {
+  @apply relative h-full w-full overflow-hidden bg-slate-950;
 }
 
 .teleport-client__image {
-  @apply block h-full min-h-[480px] w-full object-contain;
+  @apply absolute inset-0 h-full w-full object-contain;
 }
 
 .teleport-client__placeholder {
-  @apply flex h-full min-h-[480px] items-center justify-center text-sm text-muted-foreground;
+  @apply absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-slate-300;
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.85));
+}
+
+.teleport-client__status-badge {
+  @apply pointer-events-none absolute right-4 top-4 rounded-full px-3 py-1.5 text-xs font-medium shadow-lg backdrop-blur;
+}
+
+.teleport-client__status-badge--connecting {
+  @apply bg-slate-800/80 text-slate-100;
+}
+
+.teleport-client__status-badge--disconnected {
+  @apply bg-amber-600/90 text-white;
 }
