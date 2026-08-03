@@ -6,6 +6,19 @@ import type {
   SerializedNodeId,
 } from "@comfyorg/comfyui-frontend-types"
 
+// this is copied from the imported file because it's not exported and cannot be extracted
+export interface ApiCalls {
+  b_preview_with_metadata: {
+    blob: Blob
+    nodeId: string
+    parentNodeId: string
+    displayNodeId: string
+    realNodeId: string
+    jobId: string
+  }
+  promptQueueing: { requestId: number; batchCount: number; number?: number }
+}
+
 type Rect = { [key: string]: unknown }
 type Point = { [key: string]: unknown }
 

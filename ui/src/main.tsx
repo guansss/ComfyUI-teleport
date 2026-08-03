@@ -1,6 +1,6 @@
-import { app } from "./comfy"
+import { api, app } from "./comfy"
+import { INodeOutputSlot, LGraphNode } from "./comfy-shims"
 import { pushImageToClient } from "./host-rpc"
-import { INodeOutputSlot, LGraphNode } from "./types"
 import "./utils/i18n"
 import { NodeId } from "@comfyorg/comfyui-frontend-types"
 
@@ -15,6 +15,10 @@ const DEFAULT_TELEPORT_ID = ""
 
 const SLOT_TYPE_INPUT = 1
 const SLOT_TYPE_OUTPUT = 2
+
+const promptToWorkflowMap = new Map<string, string>()
+const previewNodeToTeleportNodeMap: Record<string, NodeId> = {}
+const previewNodeToImageMap: Record<string, string> = {}
 
 const teleportWindows = new Map<string, Window>()
 let nextTeleportId = 0
@@ -85,22 +89,49 @@ function getTeleportId(node: LGraphNode) {
   return null
 }
 
-function patchTeleportNode(node: LGraphNode) {
-  ensureTeleportIdWidget(node)
+function patchTeleportNode(teleportNode: LGraphNode) {
+  ensureTeleportIdWidget(teleportNode)
 
-  node.addWidget("button", "Open Window", "", () => {
-    let teleportId = getTeleportId(node)
+  teleportNode.addWidget("button", "Open Window", "", () => {
+    let teleportId = getTeleportId(teleportNode)
     if (teleportId === null) {
       teleportId = DEFAULT_TELEPORT_ID
     }
     focusOrOpenTeleportWindow(teleportId)
   })
 
-  const mode = getTeleportNodeMode(node)
+  const mode = getTeleportNodeMode(teleportNode)
   let activeTargetNode: LGraphNode | null = null
 
-  const originalOnConnectionsChange = node.onConnectionsChange
-  node.onConnectionsChange = function (...args) {
+  const setActiveTargetNode = (nodeId: NodeId, overwrite = false): LGraphNode | null => {
+    if (activeTargetNode && activeTargetNode.id === nodeId) {
+      return activeTargetNode
+    }
+    if (!overwrite && activeTargetNode) {
+      return activeTargetNode
+    }
+    const targetNode = app.rootGraph.getNodeById(nodeId) as LGraphNode | null
+    if (targetNode) {
+      resetTargetNode()
+      patchTargetNode(teleportNode, targetNode)
+      // despite NodeId being defined as a string, it's actually a number for some reason...
+      previewNodeToTeleportNodeMap[String(targetNode.id)] = teleportNode.id
+      sendImageFromImageNode(teleportNode, targetNode)
+      activeTargetNode = targetNode
+      return targetNode
+    }
+    return null
+  }
+  const resetTargetNode = () => {
+    if (activeTargetNode) {
+      unpatchTargetNode(activeTargetNode)
+      delete previewNodeToTeleportNodeMap[String(activeTargetNode.id)]
+      activeTargetNode = null
+    }
+  }
+
+  const originalOnConnectionsChange = teleportNode.onConnectionsChange
+  teleportNode.onConnectionsChange = function (...args) {
     const [slotType, , isConnected, link, slot] = args
     if (originalOnConnectionsChange) {
       originalOnConnectionsChange.apply(this, args)
@@ -108,34 +139,10 @@ function patchTeleportNode(node: LGraphNode) {
 
     const currentNode = this as LGraphNode
 
-    const patchNode = (nodeId: NodeId, overwrite = false): LGraphNode | null => {
-      if (activeTargetNode && activeTargetNode.id === nodeId) {
-        return activeTargetNode
-      }
-      if (!overwrite && activeTargetNode) {
-        return activeTargetNode
-      }
-      const node = app.rootGraph.getNodeById(nodeId) as LGraphNode | null
-      if (node) {
-        resetNode()
-        patchTargetNode(currentNode, node)
-        sendNodeImage(currentNode, node)
-        activeTargetNode = node
-        return node
-      }
-      return null
-    }
-    const resetNode = () => {
-      if (activeTargetNode) {
-        unpatchTargetNode(activeTargetNode)
-        activeTargetNode = null
-      }
-    }
-
     if (mode === "next" && slotType === SLOT_TYPE_OUTPUT) {
       // when a link is added, make this node the target node if there is no active one
       if (link && isConnected) {
-        patchNode(link.target_id, false)
+        setActiveTargetNode(link.target_id, false)
         return
       }
 
@@ -147,17 +154,17 @@ function patchTeleportNode(node: LGraphNode) {
           continue
         }
 
-        const patchedNode = patchNode(nextLink.target_id, true)
+        const patchedNode = setActiveTargetNode(nextLink.target_id, true)
         if (patchedNode) {
           return
         }
       }
 
       // when no connected nodes are found, reset the active target node
-      resetNode()
+      resetTargetNode()
     } else if (mode === "previous" && slotType === SLOT_TYPE_INPUT) {
       if (link && isConnected) {
-        patchNode(link.origin_id, false)
+        setActiveTargetNode(link.origin_id, false)
         return
       }
 
@@ -165,33 +172,45 @@ function patchTeleportNode(node: LGraphNode) {
       if (prevLinkId) {
         const prevLink = app.rootGraph.getLink(prevLinkId)
         if (prevLink) {
-          const patchedNode = patchNode(prevLink.origin_id, true)
+          const patchedNode = setActiveTargetNode(prevLink.origin_id, true)
           if (patchedNode) {
             return
           }
         }
       }
 
-      resetNode()
+      resetTargetNode()
     }
+  }
+
+  const originalOnRemoved = teleportNode.onRemoved
+  teleportNode.onRemoved = function (...args) {
+    if (originalOnRemoved) {
+      originalOnRemoved.apply(this, args)
+    }
+    resetTargetNode()
   }
 }
 
-function sendNodeImage(teleportNode: LGraphNode, targetNode: LGraphNode) {
+function sendImageFromImageNode(teleportNode: LGraphNode, targetNode: LGraphNode) {
   const image = targetNode.imgs?.[0]
   if (image?.src) {
-    let teleportId = getTeleportId(teleportNode)
-    if (teleportId === null) {
-      teleportId = DEFAULT_TELEPORT_ID
-      app.extensionManager.toast.add({
-        severity: "warn",
-        life: 2000,
-        detail: `ComfyUI.Teleport: Node ${teleportNode.title}(${teleportNode.id}) has no Teleport ID, using default ID: "${DEFAULT_TELEPORT_ID}"`,
-      })
-    }
-    console.log("ComfyUI.Teleport: pushing image to client", teleportNode, teleportId, image.src)
-    void pushImageToClient(image.src, teleportId)
+    sendImage(teleportNode, image.src)
   }
+}
+
+function sendImage(teleportNode: LGraphNode, imageUrl: string) {
+  let teleportId = getTeleportId(teleportNode)
+  if (teleportId === null) {
+    teleportId = DEFAULT_TELEPORT_ID
+    app.extensionManager.toast.add({
+      severity: "warn",
+      life: 2000,
+      detail: `ComfyUI.Teleport: Node ${teleportNode.title}(${teleportNode.id}) has no Teleport ID, using default ID: "${DEFAULT_TELEPORT_ID}"`,
+    })
+  }
+  console.log("ComfyUI.Teleport: pushing image to client", teleportNode, teleportId, imageUrl)
+  void pushImageToClient(imageUrl, teleportId)
 }
 
 function patchTargetNode(teleportNode: LGraphNode, targetNode: LGraphNode) {
@@ -234,7 +253,7 @@ function patchTargetNode(teleportNode: LGraphNode, targetNode: LGraphNode) {
       if (!this._teleportPatchEnabled) {
         return
       }
-      sendNodeImage(teleportNode, this)
+      sendImageFromImageNode(teleportNode, this)
     },
   })
   ;(targetNode as PatchableNode)._teleportPatchEnabled = true
@@ -247,6 +266,10 @@ function unpatchTargetNode(targetNode: LGraphNode) {
   }
 }
 
+function isPromptAssociatedWithActiveWorkflow(promptId: string): boolean {
+  return promptToWorkflowMap.get(promptId) === app.extensionManager.workflow.activeWorkflow.key
+}
+
 async function initialize() {
   app.registerExtension({
     name: "ComfyUI.Teleport",
@@ -256,6 +279,34 @@ async function initialize() {
       }
       patchTeleportNode(node as LGraphNode)
     },
+  })
+
+  const originalQueuePrompt = api.queuePrompt
+  api.queuePrompt = async function (...args) {
+    const result = await originalQueuePrompt.apply(this, args)
+    if (result?.prompt_id) {
+      const workflowKey = app.extensionManager.workflow.activeWorkflow?.key
+      if (workflowKey) {
+        promptToWorkflowMap.set(result.prompt_id, workflowKey)
+      }
+    }
+    return result
+  }
+
+  api.addEventListener("b_preview_with_metadata", ({ detail: { jobId, displayNodeId, blob } }) => {
+    const promptId = jobId
+    if (!isPromptAssociatedWithActiveWorkflow(promptId)) return
+    const teleportNodeId = previewNodeToTeleportNodeMap[String(displayNodeId)]
+    if (!teleportNodeId) return
+    const teleportNode = app.rootGraph.getNodeById(teleportNodeId) as LGraphNode | null
+    if (!teleportNode) return
+
+    if (previewNodeToImageMap[String(displayNodeId)]) {
+      URL.revokeObjectURL(previewNodeToImageMap[String(displayNodeId)])
+    }
+    const imageUrl = URL.createObjectURL(blob)
+    previewNodeToImageMap[String(displayNodeId)] = imageUrl
+    sendImage(teleportNode, imageUrl)
   })
 }
 
