@@ -2,7 +2,7 @@ import { api, app } from "./comfy"
 import { INodeOutputSlot, LGraphNode } from "./comfy-shims"
 import { pushImageToClient } from "./host-rpc"
 import "./utils/i18n"
-import { NodeId } from "@comfyorg/comfyui-frontend-types"
+import { ComfyApp, NodeId } from "@comfyorg/comfyui-frontend-types"
 
 interface PatchableNode extends LGraphNode {
   _teleportPatchEnabled?: boolean
@@ -21,19 +21,21 @@ const previewNodeToTeleportNodeMap: Record<string, NodeId> = {}
 const previewNodeToImageMap: Record<string, string> = {}
 
 const teleportWindows = new Map<string, Window>()
-let nextTeleportId = 0
 
-function generateTeleportId() {
-  let value = nextTeleportId
-  nextTeleportId += 1
-
+function generateTeleportId(existingIds?: string[]): string {
+  let nextTeleportId = 1
   let letters = ""
   do {
-    value -= 1
-    letters = String.fromCharCode(65 + (value % 26)) + letters
-    value = Math.floor(value / 26)
-  } while (value > 0)
+    let value = nextTeleportId
+    nextTeleportId += 1
 
+    letters = ""
+    do {
+      value -= 1
+      letters = String.fromCharCode(65 + (value % 26)) + letters
+      value = Math.floor(value / 26)
+    } while (value > 0)
+  } while (existingIds?.includes(letters))
   return letters
 }
 
@@ -74,7 +76,11 @@ function getTeleportNodeMode(node: LGraphNode) {
 function ensureTeleportIdWidget(node: LGraphNode) {
   const existingWidget = node.widgets?.find((widget) => widget.name === "ID")
   if (!existingWidget) {
-    const newWidget = node.addWidget("text", "ID", generateTeleportId(), undefined)
+    const existingTeleportIds = app.rootGraph.nodes
+      .map((n) => (isTeleportNode(n) ? getTeleportId(n as LGraphNode) : null))
+      .filter((id): id is string => id !== null)
+    const defaultId = generateTeleportId(existingTeleportIds)
+    const newWidget = node.addWidget("text", "ID", defaultId, undefined)
     return newWidget.value as string
   }
 }
@@ -270,13 +276,15 @@ function isPromptAssociatedWithActiveWorkflow(promptId: string): boolean {
   return promptToWorkflowMap.get(promptId) === app.extensionManager.workflow.activeWorkflow.key
 }
 
+function isTeleportNode(node: ComfyApp["rootGraph"]["nodes"][number]): boolean {
+  return TELEPORT_NODE_CLASSES.has(Object.getPrototypeOf(node)?.comfyClass)
+}
+
 async function initialize() {
   app.registerExtension({
     name: "ComfyUI.Teleport",
     nodeCreated(node) {
-      if (!TELEPORT_NODE_CLASSES.has(Object.getPrototypeOf(node)?.comfyClass)) {
-        return
-      }
+      if (!isTeleportNode(node)) return
       patchTeleportNode(node as LGraphNode)
     },
   })
