@@ -1,7 +1,8 @@
-import { app } from "./app"
+import { app } from "./comfy"
 import { pushImageToClient } from "./host-rpc"
 import { INodeOutputSlot, LGraphNode } from "./types"
 import "./utils/i18n"
+import { NodeId } from "@comfyorg/comfyui-frontend-types"
 
 interface PatchableNode extends LGraphNode {
   _teleportPatchEnabled?: boolean
@@ -9,6 +10,8 @@ interface PatchableNode extends LGraphNode {
 
 const TELEPORT_NODE_CLASSES = new Set(["TeleportNext", "TeleportPrevious"])
 const TELEPORT_WINDOW_NAME_PREFIX = "comfyui-teleport-window"
+
+const DEFAULT_TELEPORT_ID = ""
 
 const SLOT_TYPE_INPUT = 1
 const SLOT_TYPE_OUTPUT = 2
@@ -66,68 +69,77 @@ function getTeleportNodeMode(node: LGraphNode) {
 
 function ensureTeleportIdWidget(node: LGraphNode) {
   const existingWidget = node.widgets?.find((widget) => widget.name === "ID")
-  if (existingWidget) {
-    return getTeleportId(node)
+  if (!existingWidget) {
+    const newWidget = node.addWidget("text", "ID", generateTeleportId(), undefined)
+    return newWidget.value as string
   }
-
-  const generatedId = generateTeleportId()
-  node.addWidget("text", "ID", generatedId, undefined)
-  return generatedId
 }
 
 function getTeleportId(node: LGraphNode) {
   const idWidget = node.widgets?.find((widget) => widget.name === "ID")
   const widgetValue = idWidget?.value
 
-  if (typeof widgetValue === "string" && widgetValue.trim()) {
+  if (typeof widgetValue === "string") {
     return widgetValue.trim()
   }
-
-  const generatedId = generateTeleportId()
-  if (idWidget) {
-    idWidget.value = generatedId
-  }
-  return generatedId
+  return null
 }
 
 function patchTeleportNode(node: LGraphNode) {
   ensureTeleportIdWidget(node)
 
   node.addWidget("button", "Open Window", "", () => {
-    focusOrOpenTeleportWindow(getTeleportId(node))
+    let teleportId = getTeleportId(node)
+    if (teleportId === null) {
+      teleportId = DEFAULT_TELEPORT_ID
+    }
+    focusOrOpenTeleportWindow(teleportId)
   })
 
   const mode = getTeleportNodeMode(node)
-  let activeConnectedNode: LGraphNode | null = null
+  let activeTargetNode: LGraphNode | null = null
 
   const originalOnConnectionsChange = node.onConnectionsChange
   node.onConnectionsChange = function (...args) {
-    const [slotType, index, isConnected, link, slot] = args
+    const [slotType, , isConnected, link, slot] = args
     if (originalOnConnectionsChange) {
       originalOnConnectionsChange.apply(this, args)
     }
 
     const currentNode = this as LGraphNode
-    const teleportId = getTeleportId(currentNode)
+
+    const patchNode = (nodeId: NodeId, overwrite = false): LGraphNode | null => {
+      if (activeTargetNode && activeTargetNode.id === nodeId) {
+        return activeTargetNode
+      }
+      if (!overwrite && activeTargetNode) {
+        return activeTargetNode
+      }
+      const node = app.rootGraph.getNodeById(nodeId) as LGraphNode | null
+      if (node) {
+        resetNode()
+        patchTargetNode(currentNode, node)
+        sendNodeImage(currentNode, node)
+        activeTargetNode = node
+        return node
+      }
+      return null
+    }
+    const resetNode = () => {
+      if (activeTargetNode) {
+        unpatchTargetNode(activeTargetNode)
+        activeTargetNode = null
+      }
+    }
 
     if (mode === "next" && slotType === SLOT_TYPE_OUTPUT) {
-      if (link) {
-        const targetNode = app.rootGraph.getNodeById(link.target_id) as LGraphNode | null
-        if (!targetNode) {
-          return
-        }
-
-        patchTargetNode(currentNode, targetNode, teleportId)
-        activeConnectedNode = targetNode
-        sendNodeImage(targetNode.imgs, teleportId)
+      // when a link is added, make this node the target node if there is no active one
+      if (link && isConnected) {
+        patchNode(link.target_id, false)
         return
       }
 
-      if (activeConnectedNode) {
-        unpatchTargetNode(activeConnectedNode)
-        activeConnectedNode = null
-      }
-
+      // when a link is removed, find other connected nodes and make one of them the target node
       const links = (slot as INodeOutputSlot).links ?? []
       for (const linkId of links) {
         const nextLink = app.rootGraph.getLink(linkId)
@@ -135,59 +147,64 @@ function patchTeleportNode(node: LGraphNode) {
           continue
         }
 
-        const nextTargetNode = app.rootGraph.getNodeById(nextLink.target_id) as LGraphNode | null
-        if (nextTargetNode) {
-          patchTargetNode(currentNode, nextTargetNode, teleportId)
-          activeConnectedNode = nextTargetNode
-          sendNodeImage(nextTargetNode.imgs, teleportId)
-        }
-      }
-      return
-    } else if (mode === "previous" && slotType === SLOT_TYPE_INPUT) {
-      if (link) {
-        const sourceNode = app.rootGraph.getNodeById(link.origin_id) as LGraphNode | null
-        if (!sourceNode) {
+        const patchedNode = patchNode(nextLink.target_id, true)
+        if (patchedNode) {
           return
         }
-
-        patchTargetNode(currentNode, sourceNode, teleportId)
-        activeConnectedNode = sourceNode
-        sendNodeImage(sourceNode.imgs, teleportId)
-        return
       }
 
-      if (activeConnectedNode) {
-        unpatchTargetNode(activeConnectedNode)
-        activeConnectedNode = null
+      // when no connected nodes are found, reset the active target node
+      resetNode()
+    } else if (mode === "previous" && slotType === SLOT_TYPE_INPUT) {
+      if (link && isConnected) {
+        patchNode(link.origin_id, false)
+        return
       }
 
       const prevLinkId = currentNode.inputs?.[0]?.link
       if (prevLinkId) {
         const prevLink = app.rootGraph.getLink(prevLinkId)
         if (prevLink) {
-          const prevSourceNode = app.rootGraph.getNodeById(prevLink.origin_id) as LGraphNode | null
-          if (prevSourceNode) {
-            patchTargetNode(currentNode, prevSourceNode, teleportId)
-            activeConnectedNode = prevSourceNode
-            sendNodeImage(prevSourceNode.imgs, teleportId)
+          const patchedNode = patchNode(prevLink.origin_id, true)
+          if (patchedNode) {
+            return
           }
         }
       }
+
+      resetNode()
     }
   }
 }
 
-function sendNodeImage(imgs: LGraphNode["imgs"], teleportId: string) {
-  const image = imgs?.[0]
+function sendNodeImage(teleportNode: LGraphNode, targetNode: LGraphNode) {
+  const image = targetNode.imgs?.[0]
   if (image?.src) {
-    console.log("ComfyUI.Teleport: pushing image to client", teleportId, image.src)
+    let teleportId = getTeleportId(teleportNode)
+    if (teleportId === null) {
+      teleportId = DEFAULT_TELEPORT_ID
+      app.extensionManager.toast.add({
+        severity: "warn",
+        life: 2000,
+        detail: `ComfyUI.Teleport: Node ${teleportNode.title}(${teleportNode.id}) has no Teleport ID, using default ID: "${DEFAULT_TELEPORT_ID}"`,
+      })
+    }
+    console.log("ComfyUI.Teleport: pushing image to client", teleportNode, teleportId, image.src)
     void pushImageToClient(image.src, teleportId)
   }
 }
 
-function patchTargetNode(teleportNode: LGraphNode, targetNode: LGraphNode, teleportId: string) {
-  console.log("ComfyUI.Teleport: patchTargetNode", teleportNode, targetNode, teleportId)
-  if ((targetNode as PatchableNode)._teleportPatchEnabled === true) {
+function patchTargetNode(teleportNode: LGraphNode, targetNode: LGraphNode) {
+  console.log(
+    "ComfyUI.Teleport: patchTargetNode",
+    teleportNode,
+    targetNode,
+    getTeleportId(teleportNode),
+  )
+
+  // if the node is already patched, just enable it and return
+  if ((targetNode as PatchableNode)._teleportPatchEnabled !== undefined) {
+    ;(targetNode as PatchableNode)._teleportPatchEnabled = true
     return
   }
 
@@ -217,7 +234,7 @@ function patchTargetNode(teleportNode: LGraphNode, targetNode: LGraphNode, telep
       if (!this._teleportPatchEnabled) {
         return
       }
-      sendNodeImage(value, teleportId)
+      sendNodeImage(teleportNode, this)
     },
   })
   ;(targetNode as PatchableNode)._teleportPatchEnabled = true
