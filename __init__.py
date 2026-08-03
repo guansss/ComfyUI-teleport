@@ -5,31 +5,43 @@ import server
 from aiohttp import web
 
 
-class Teleport:
+class TeleportBase:
     @classmethod
     def INPUT_TYPES(cls):
         return {
-            "required": {
+            "required": {},
+            "optional": {
                 "image": ("IMAGE",),
+                "latent": ("LATENT",),
             },
         }
 
-    RETURN_TYPES = ("IMAGE",)
-    RETURN_NAMES = ("image",)
+    RETURN_TYPES = ("IMAGE", "LATENT")
+    RETURN_NAMES = ("image", "latent")
     FUNCTION = "execute"
-    CATEGORY = "image"
+    CATEGORY = "Teleport"
     OUTPUT_NODE = True
 
-    def execute(self, image):
-        return {"ui": {"my_custom_text": ["Update info here"]}, "result": (image,)}
+    def execute(self, image=None, latent=None):
+        return {"ui": {"my_custom_text": ["Update info here"]}, "result": (image, latent)}
+
+
+class TeleportNext(TeleportBase):
+    pass
+
+
+class TeleportPrevious(TeleportBase):
+    pass
 
 
 NODE_CLASS_MAPPINGS = {
-    "Teleport": Teleport,
+    "TeleportNext": TeleportNext,
+    "TeleportPrevious": TeleportPrevious,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "Teleport": "Teleport",
+    "TeleportNext": "Teleport Next",
+    "TeleportPrevious": "Teleport Previous",
 }
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
