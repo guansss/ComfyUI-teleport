@@ -1,68 +1,77 @@
 import type { HostFunctions } from "../host-rpc"
-import { RPC_CHANNEL_NAME, WINDOW_ID } from "../shared"
+import { FALLBACK_TELEPORT_ID, RPC_CHANNEL_NAME, RPC_PING_INTERVAL_MS, WINDOW_ID } from "../shared"
 import { createClientRpc } from "../utils/rpc"
+import { atom, getDefaultStore, useAtomValue, useSetAtom } from "jotai"
+import { useEffect } from "react"
 
-type ClientState = {
-  imageUrl: string
-  connected: boolean
-  teleportId: string
+type ConnectionStatus = "connecting" | "connected"
+
+export const imageUrlAtom = atom<string>("")
+export const connectionStatusAtom = atom<ConnectionStatus>("connecting")
+export const teleportIdAtom = atom<string>(getTeleportIdFromUrl() || FALLBACK_TELEPORT_ID)
+
+function getTeleportIdFromUrl() {
+  const params = new URLSearchParams(window.location.search)
+  return params.get("teleportId")?.trim()
 }
-
-const listeners = new Set<(state: ClientState) => void>()
-const state: ClientState = {
-  imageUrl: "",
-  connected: false,
-  teleportId: "",
-}
-
-function emit() {
-  for (const listener of listeners) {
-    listener({ ...state })
-  }
-}
-
-const clientFunctions = new (class {
-  async updateImage(imageUrl: string, teleportId: string) {
-    if (state.teleportId && teleportId && state.teleportId !== teleportId) {
-      return false
-    }
-
-    state.imageUrl = imageUrl
-    emit()
-    return true
-  }
-})()
 
 export type ClientFunctions = {
-  [K in keyof typeof clientFunctions]: (typeof clientFunctions)[K]
+  updateImage(imageUrl: string, teleportId: string): Promise<boolean>
 }
 
-export const clientRpc = createClientRpc<HostFunctions, ClientFunctions>(
-  RPC_CHANNEL_NAME,
-  WINDOW_ID,
-  clientFunctions,
-)
+function createRpc() {
+  const store = getDefaultStore()
 
-export function subscribeClientState(listener: (state: ClientState) => void) {
-  listeners.add(listener)
-  listener({ ...state })
+  const clientFunctions = new (class {
+    async updateImage(imageUrl: string, teleportId: string) {
+      const localTeleportId = store.get(teleportIdAtom)
+      if (localTeleportId && teleportId && localTeleportId !== teleportId) {
+        return false
+      }
 
-  return () => {
-    listeners.delete(listener)
-  }
+      store.set(imageUrlAtom, imageUrl)
+      return true
+    }
+  })()
+
+  const rpc = createClientRpc<HostFunctions, ClientFunctions>(
+    RPC_CHANNEL_NAME,
+    WINDOW_ID,
+    clientFunctions,
+  )
+  return rpc
 }
 
-export function setConnected(connected: boolean) {
-  state.connected = connected
-  emit()
+export const clientRpc = createRpc()
+
+function registerClient(teleportId: string) {
+  return clientRpc.$ignoreTimeout.$callEvent("registerClient", {
+    clientId: WINDOW_ID,
+    teleportId,
+  })
 }
 
-export function setTeleportId(teleportId: string) {
-  state.teleportId = teleportId
-  emit()
-}
+export function useConnectionLoop() {
+  const teleportId = useAtomValue(teleportIdAtom)
+  const setStatus = useSetAtom(connectionStatusAtom)
 
-export function setClientImage(imageUrl: string) {
-  state.imageUrl = imageUrl
-  emit()
+  useEffect(() => {
+    const run = () => {
+      void clientRpc
+        .ping(WINDOW_ID)
+        .then((registered) => {
+          setStatus("connected")
+          if (!registered) {
+            void registerClient(teleportId)
+          }
+        })
+        .catch((e) => {
+          console.warn("Failed to ping host:", e)
+          setStatus("connecting")
+        })
+    }
+    const timer = setInterval(run, RPC_PING_INTERVAL_MS)
+    run()
+    return () => clearInterval(timer)
+  }, [teleportId])
 }

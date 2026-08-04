@@ -1,0 +1,30 @@
+{
+  "essentials": {
+    "language": {
+      "cn": "简体中文",
+      "en": "English"
+    },
+    "translations_not_loaded": {
+      "cn": "翻译未加载",
+      "en": "Translations have not been loaded."
+    },
+    "translation_load_failed": {
+      "cn": "翻译加载失败",
+      "en": "Failed to load translations."
+    }
+  },
+  "app": {
+    "connecting": {
+      "cn": "正在连接主窗口...",
+      "en": "Connecting to host..."
+    },
+    "connected": {
+      "cn": "已连接",
+      "en": "Connected"
+    },
+    "waiting": {
+      "cn": "等待图像流...",
+      "en": "Waiting for image stream..."
+    }
+  }
+}

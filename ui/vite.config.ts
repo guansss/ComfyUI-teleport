@@ -1,3 +1,4 @@
+import { generateTranslations } from "./scripts/generate-translations"
 import react from "@vitejs/plugin-react"
 import fs from "fs"
 import path from "path"
@@ -52,7 +53,11 @@ export default defineConfig(({ mode }) => ({
     __DEV__: mode === "development" || process.argv.includes("--watch"),
     __EXTENSION_NAME__: JSON.stringify(extensionName),
   },
-  plugins: [react(), rewriteComfyImports({ isDev: mode === "development" })],
+  plugins: [
+    react(),
+    rewriteComfyImports({ isDev: mode === "development" }),
+    generateTranslations(),
+  ],
   build: {
     emptyOutDir: true,
     rollupOptions: {

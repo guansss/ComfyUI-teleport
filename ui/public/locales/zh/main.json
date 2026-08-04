@@ -1,9 +1,0 @@
-{
-  "app": {
-    "title": "Teleport 查看器",
-    "connecting": "正在连接主窗口...",
-    "connected": "已连接",
-    "disconnected": "连接断开，正在重试...",
-    "waiting": "等待图像流..."
-  }
-}

@@ -1,9 +1,0 @@
-{
-  "app": {
-    "title": "Teleport Viewer",
-    "connecting": "Connecting to host...",
-    "connected": "Connected",
-    "disconnected": "Disconnected. Retrying...",
-    "waiting": "Waiting for image stream..."
-  }
-}

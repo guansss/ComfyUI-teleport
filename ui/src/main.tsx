@@ -2,8 +2,7 @@ import { api, app } from "./comfy"
 import { INodeOutputSlot, LGraphNode } from "./comfy-shims"
 import { emitter, Events } from "./events"
 import { getAvailableClients, pushImageToClient } from "./host-rpc"
-import { getWebDir } from "./shared"
-import "./utils/i18n"
+import { FALLBACK_TELEPORT_ID, getWebDir } from "./shared"
 import { ComfyApp, NodeId } from "@comfyorg/comfyui-frontend-types"
 
 interface PatchableNode extends LGraphNode {
@@ -11,8 +10,6 @@ interface PatchableNode extends LGraphNode {
 }
 
 const TELEPORT_NODE_CLASSES = new Set(["TeleportNext", "TeleportPrevious"])
-
-const DEFAULT_TELEPORT_ID = ""
 
 const SLOT_TYPE_INPUT = 1
 const SLOT_TYPE_OUTPUT = 2
@@ -88,10 +85,10 @@ function getTeleportId(node: LGraphNode) {
 
 function buildOpenWindowButton(node: LGraphNode) {
   const openButton = node.addWidget("button", "Open Window", "", () => {
-    openTeleportWindow(getTeleportId(node) ?? DEFAULT_TELEPORT_ID)
+    openTeleportWindow(getTeleportId(node) ?? FALLBACK_TELEPORT_ID)
   })
   const updateLabel = () => {
-    const teleportId = getTeleportId(node) ?? DEFAULT_TELEPORT_ID
+    const teleportId = getTeleportId(node) ?? FALLBACK_TELEPORT_ID
     const matchedClients = getAvailableClients().filter(
       (client) => client.teleportId === teleportId,
     )
@@ -231,11 +228,11 @@ function sendImageFromImageNode(teleportNode: LGraphNode, targetNode: LGraphNode
 function sendImage(teleportNode: LGraphNode, imageUrl: string) {
   let teleportId = getTeleportId(teleportNode)
   if (teleportId === null) {
-    teleportId = DEFAULT_TELEPORT_ID
+    teleportId = FALLBACK_TELEPORT_ID
     app.extensionManager.toast.add({
       severity: "warn",
       life: 2000,
-      detail: `ComfyUI.Teleport: Node ${teleportNode.title}(${teleportNode.id}) has no Teleport ID, using default ID: "${DEFAULT_TELEPORT_ID}"`,
+      detail: `ComfyUI.Teleport: Node ${teleportNode.title}(${teleportNode.id}) has no Teleport ID, using default ID: "${FALLBACK_TELEPORT_ID}"`,
     })
   }
   console.log("ComfyUI.Teleport: pushing image to client", teleportNode, teleportId, imageUrl)
