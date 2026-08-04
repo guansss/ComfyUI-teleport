@@ -51,6 +51,7 @@
     "prettier": "^3.5.3",
     "tailwindcss": "^3.4.17",
     "tailwindcss-animate": "^1.0.7",
+    "toml": "^5.0.0",
     "typescript": "^5.4.2",
     "typescript-eslint": "^8.32.1",
     "vite": "^5.2.10"

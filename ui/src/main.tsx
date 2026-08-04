@@ -2,6 +2,7 @@ import { api, app } from "./comfy"
 import { INodeOutputSlot, LGraphNode } from "./comfy-shims"
 import { emitter, Events } from "./events"
 import { getAvailableClients, pushImageToClient } from "./host-rpc"
+import { getWebDir } from "./shared"
 import "./utils/i18n"
 import { ComfyApp, NodeId } from "@comfyorg/comfyui-frontend-types"
 
@@ -38,7 +39,7 @@ function generateTeleportId(existingIds?: string[]): string {
 }
 
 function getClientWindowUrl(teleportId: string): string {
-  const url = new URL("/teleport/client.html", window.location.href)
+  const url = new URL(`${getWebDir()}/client.html`, window.location.href)
   url.searchParams.set("teleportId", teleportId)
   return url.toString()
 }

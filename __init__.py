@@ -59,24 +59,6 @@ print(f"Locales exist: {os.path.exists(dist_locales_path)}")
 
 # Register the static route for serving our React app assets
 if os.path.exists(dist_path):
-    # Add the routes for the extension
-    server.PromptServer.instance.app.add_routes(
-        [
-            web.static("/teleport/", dist_path),
-        ]
-    )
-
-    # Register the locale files route
-    if os.path.exists(dist_locales_path):
-        server.PromptServer.instance.app.add_routes(
-            [
-                web.static("/locales/", dist_locales_path),
-            ]
-        )
-        print("Registered locale files route at /locales/")
-    else:
-        print("WARNING: Locale directory not found!")
-
     # Also register the standard ComfyUI extension web directory
 
     project_name = os.path.basename(workspace_path)
