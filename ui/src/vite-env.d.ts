@@ -7,3 +7,5 @@ interface ImportMeta {
     MODE: string
   }
 }
+
+declare const __DEV__: boolean

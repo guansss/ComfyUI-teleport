@@ -1,6 +1,7 @@
 import { api, app } from "./comfy"
 import { INodeOutputSlot, LGraphNode } from "./comfy-shims"
-import { pushImageToClient } from "./host-rpc"
+import { emitter, Events } from "./events"
+import { getAvailableClients, pushImageToClient } from "./host-rpc"
 import "./utils/i18n"
 import { ComfyApp, NodeId } from "@comfyorg/comfyui-frontend-types"
 
@@ -9,7 +10,6 @@ interface PatchableNode extends LGraphNode {
 }
 
 const TELEPORT_NODE_CLASSES = new Set(["TeleportNext", "TeleportPrevious"])
-const TELEPORT_WINDOW_NAME_PREFIX = "comfyui-teleport-window"
 
 const DEFAULT_TELEPORT_ID = ""
 
@@ -19,8 +19,6 @@ const SLOT_TYPE_OUTPUT = 2
 const promptToWorkflowMap = new Map<string, string>()
 const previewNodeToTeleportNodeMap: Record<string, NodeId> = {}
 const previewNodeToImageMap: Record<string, string> = {}
-
-const teleportWindows = new Map<string, Window>()
 
 function generateTeleportId(existingIds?: string[]): string {
   let nextTeleportId = 1
@@ -40,49 +38,41 @@ function generateTeleportId(existingIds?: string[]): string {
 }
 
 function getClientWindowUrl(teleportId: string): string {
-  const url = new URL(
-    import.meta.env.DEV
-      ? `${window.location.protocol}//${window.location.hostname}:5173/client.html`
-      : "/teleport/client.html",
-    window.location.href,
-  )
+  const url = new URL("/teleport/client.html", window.location.href)
   url.searchParams.set("teleportId", teleportId)
   return url.toString()
 }
 
-function focusOrOpenTeleportWindow(teleportId: string) {
-  const existingWindow = teleportWindows.get(teleportId)
-  if (existingWindow && !existingWindow.closed) {
-    existingWindow.focus()
-    return
-  }
-
-  const windowName = `${TELEPORT_WINDOW_NAME_PREFIX}-${teleportId}`
-  const newWindow = window.open(
+function openTeleportWindow(teleportId: string) {
+  window.open(
     getClientWindowUrl(teleportId),
-    windowName,
+    "_blank",
     "popup=yes,width=1000,height=780,resizable=yes,scrollbars=no",
   )
-
-  if (newWindow) {
-    teleportWindows.set(teleportId, newWindow)
-  }
 }
 
 function getTeleportNodeMode(node: LGraphNode) {
   return node.comfyClass === "TeleportPrevious" ? "previous" : "next"
 }
 
-function ensureTeleportIdWidget(node: LGraphNode) {
+function buildTeleportIdWidget(node: LGraphNode) {
   const existingWidget = node.widgets?.find((widget) => widget.name === "ID")
-  if (!existingWidget) {
-    const existingTeleportIds = app.rootGraph.nodes
-      .map((n) => (isTeleportNode(n) ? getTeleportId(n as LGraphNode) : null))
-      .filter((id): id is string => id !== null)
-    const defaultId = generateTeleportId(existingTeleportIds)
-    const newWidget = node.addWidget("text", "ID", defaultId, undefined)
-    return newWidget.value as string
-  }
+  if (existingWidget) return existingWidget
+
+  const existingTeleportIds = app.isGraphReady
+    ? app.rootGraph.nodes
+        .map((n) => (isTeleportNode(n) ? getTeleportId(n as LGraphNode) : null))
+        .filter((id): id is string => id !== null)
+    : []
+  const defaultId = generateTeleportId(existingTeleportIds)
+  const newWidget = node.addWidget("text", "ID", defaultId, (value) => {
+    emitter.dispatchEvent(
+      new CustomEvent("teleportIdChanged", {
+        detail: { nodeId: node.id, teleportId: String(value) },
+      }),
+    )
+  })
+  return newWidget
 }
 
 function getTeleportId(node: LGraphNode) {
@@ -95,16 +85,48 @@ function getTeleportId(node: LGraphNode) {
   return null
 }
 
-function patchTeleportNode(teleportNode: LGraphNode) {
-  ensureTeleportIdWidget(teleportNode)
-
-  teleportNode.addWidget("button", "Open Window", "", () => {
-    let teleportId = getTeleportId(teleportNode)
-    if (teleportId === null) {
-      teleportId = DEFAULT_TELEPORT_ID
-    }
-    focusOrOpenTeleportWindow(teleportId)
+function buildOpenWindowButton(node: LGraphNode) {
+  const openButton = node.addWidget("button", "Open Window", "", () => {
+    openTeleportWindow(getTeleportId(node) ?? DEFAULT_TELEPORT_ID)
   })
+  const updateLabel = () => {
+    const teleportId = getTeleportId(node) ?? DEFAULT_TELEPORT_ID
+    const matchedClients = getAvailableClients().filter(
+      (client) => client.teleportId === teleportId,
+    )
+    openButton.label = `Open Window (${matchedClients.length})`
+  }
+  updateLabel()
+  const onClientsChanged = () => updateLabel()
+  emitter.addEventListener("clientsChanged", onClientsChanged)
+  const onTeleportIdChanged = (event: Events["teleportIdChanged"]) => {
+    if (event.detail.nodeId === node.id) {
+      updateLabel()
+    }
+  }
+  emitter.addEventListener("teleportIdChanged", onTeleportIdChanged)
+
+  const originalonConfigure = node.onConfigure
+  node.onConfigure = function (...args) {
+    if (originalonConfigure) {
+      originalonConfigure.apply(this, args)
+    }
+    updateLabel()
+  }
+
+  const originalOnRemoved = node.onRemoved
+  node.onRemoved = function (...args) {
+    if (originalOnRemoved) {
+      originalOnRemoved.apply(this, args)
+    }
+    emitter.removeEventListener("clientsChanged", onClientsChanged)
+    emitter.removeEventListener("teleportIdChanged", onTeleportIdChanged)
+  }
+}
+
+function patchTeleportNode(teleportNode: LGraphNode) {
+  buildTeleportIdWidget(teleportNode)
+  buildOpenWindowButton(teleportNode)
 
   const mode = getTeleportNodeMode(teleportNode)
   let activeTargetNode: LGraphNode | null = null

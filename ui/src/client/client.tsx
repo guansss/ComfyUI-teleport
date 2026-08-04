@@ -1,11 +1,6 @@
+import { RPC_PING_INTERVAL_MS, WINDOW_ID } from "../shared"
 import "../utils/i18n"
-import {
-  clientRpc,
-  markDisconnected,
-  setClientId,
-  setClientImage,
-  subscribeClientState,
-} from "./client-rpc"
+import { clientRpc, setConnected, setTeleportId, subscribeClientState } from "./client-rpc"
 import "./client.css"
 import { useEffect, useState } from "react"
 import { createRoot } from "react-dom/client"
@@ -30,36 +25,34 @@ function statusMessage(status: ConnectionStatus, t: (key: string) => string) {
   return t("app.disconnected")
 }
 
-async function connectClient(setStatus: (status: ConnectionStatus) => void, clientId: string) {
+async function connectClient(setStatus: (status: ConnectionStatus) => void, teleportId: string) {
   setStatus("connecting")
 
   try {
-    const latestImage = await clientRpc.registerClient(clientId)
-    if (latestImage) {
-      setClientImage(latestImage)
-      setStatus("connected")
-    } else {
-      setStatus("disconnected")
-    }
-  } catch {
-    markDisconnected()
-    setStatus("disconnected")
+    await clientRpc.registerClient({ clientId: WINDOW_ID, teleportId })
+    setConnected(true)
+  } catch (e) {
+    console.warn("Failed to register client:", e)
+    setConnected(false)
   }
 }
 
-function setupReconnectLoop(setStatus: (status: ConnectionStatus) => void, clientId: string) {
+function setupReconnectLoop(setStatus: (status: ConnectionStatus) => void, teleportId: string) {
   setInterval(() => {
     void clientRpc
-      .ping(clientId)
-      .then(() => {
-        setStatus("connected")
+      .ping(WINDOW_ID)
+      .then((registered) => {
+        setConnected(true)
+        if (!registered) {
+          void connectClient(setStatus, teleportId)
+        }
       })
-      .catch(() => {
-        markDisconnected()
-        setStatus("disconnected")
-        void connectClient(setStatus, clientId)
+      .catch((e) => {
+        console.warn("Failed to ping host:", e)
+        setConnected(false)
+        void connectClient(setStatus, teleportId)
       })
-  }, 2000)
+  }, RPC_PING_INTERVAL_MS)
 }
 
 function mountClient() {
@@ -68,29 +61,29 @@ function mountClient() {
     return
   }
 
-  const clientId = getTeleportIdFromUrl()
-  setClientId(clientId)
-  document.title = `Teleport - ${clientId}`
+  const teleportId = getTeleportIdFromUrl()
+  setTeleportId(teleportId)
+  document.title = `Teleport - ${teleportId}`
 
   const root = createRoot(rootElement)
   const renderClient = (status: ConnectionStatus) => {
-    root.render(<ClientApp status={status} clientId={clientId} />)
+    root.render(<ClientApp status={status} teleportId={teleportId} />)
   }
 
   const setStatus = (status: ConnectionStatus) => {
     renderClient(status)
   }
 
-  void connectClient(setStatus, clientId)
-  setupReconnectLoop(setStatus, clientId)
+  void connectClient(setStatus, teleportId)
+  setupReconnectLoop(setStatus, teleportId)
 }
 
 function ClientApp({
   status: initialStatus,
-  clientId,
+  teleportId,
 }: {
   status: ConnectionStatus
-  clientId: string
+  teleportId: string
 }) {
   const { t } = useTranslation()
   const [imageUrl, setImageUrl] = useState("")
@@ -101,6 +94,8 @@ function ClientApp({
       setImageUrl(state.imageUrl)
       if (state.connected) {
         setStatus("connected")
+      } else {
+        setStatus("disconnected")
       }
     })
 
@@ -112,8 +107,8 @@ function ClientApp({
   }, [initialStatus])
 
   useEffect(() => {
-    document.title = `Teleport - ${clientId}`
-  }, [clientId])
+    document.title = `Teleport - ${teleportId}`
+  }, [teleportId])
 
   return (
     <main className="teleport-client">

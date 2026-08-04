@@ -1,20 +1,56 @@
 import type { ClientFunctions } from "./client/client-rpc"
-import { createRpc } from "./utils/rpc"
+import { emitter } from "./events"
+import { RPC_CHANNEL_NAME, RPC_PING_INTERVAL_MS } from "./shared"
+import { createHostRpc } from "./utils/rpc"
 
-const latestImagesById = new Map<string, string>()
+const latestImagesByTeleportId = new Map<string, string>()
+
+type RegisteredClient = {
+  clientId: string
+  teleportId: string
+}
+
+const clientsById = new Map<string, RegisteredClient>()
+
+function getAvailableClients() {
+  return Array.from(clientsById.values())
+}
+
+function emitClientsChanged() {
+  emitter.dispatchEvent(
+    new CustomEvent("clientsChanged", { detail: { clients: getAvailableClients() } }),
+  )
+}
 
 const hostFunctions = new (class HostRpc {
-  async ping(clientId: string) {
-    return "pong"
+  /**
+   * @returns `true` if the client is registered, `false` otherwise
+   */
+  async ping(clientId: string): Promise<boolean> {
+    const existingClient = clientsById.get(clientId)
+    if (existingClient) {
+      return true
+    }
+    return false
   }
 
-  async registerClient(clientId: string) {
-    const latestImage = latestImagesById.get(clientId) ?? ""
-    if (latestImage) {
-      await hostRpc.ignoreTimeout.updateImage(latestImage, clientId)
+  async registerClient({ clientId, teleportId }: { clientId: string; teleportId: string }) {
+    const existingClient = clientsById.get(clientId)
+    if (!existingClient) {
+      clientsById.set(clientId, { clientId, teleportId })
+      emitClientsChanged()
+    } else {
+      const teleportChanged = existingClient.teleportId !== teleportId
+      existingClient.teleportId = teleportId
+      if (teleportChanged) {
+        emitClientsChanged()
+      }
     }
 
-    return latestImage
+    const latestImage = latestImagesByTeleportId.get(teleportId) ?? ""
+    if (latestImage) {
+      void hostRpc.broadcast.$ignoreTimeout.$callEvent("updateImage", latestImage, teleportId)
+    }
   }
 })()
 
@@ -22,9 +58,23 @@ export type HostFunctions = {
   [K in keyof typeof hostFunctions]: (typeof hostFunctions)[K]
 }
 
-export const hostRpc = createRpc<ClientFunctions, HostFunctions>(hostFunctions)
+export const hostRpc = createHostRpc<ClientFunctions, HostFunctions>(
+  RPC_CHANNEL_NAME,
+  hostFunctions,
+  {
+    clientStaleTimeoutMs: RPC_PING_INTERVAL_MS + 100,
+    clientSweepIntervalMs: RPC_PING_INTERVAL_MS + 500,
+    onClientAdded() {},
+    onClientRemoved(clientId) {
+      clientsById.delete(clientId)
+      emitClientsChanged()
+    },
+  },
+)
 
-export async function pushImageToClient(imageUrl: string, clientId: string) {
-  latestImagesById.set(clientId, imageUrl)
-  await hostRpc.ignoreTimeout.updateImage(imageUrl, clientId)
+export { getAvailableClients }
+
+export async function pushImageToClient(imageUrl: string, teleportId: string) {
+  latestImagesByTeleportId.set(teleportId, imageUrl)
+  await hostRpc.broadcast.$ignoreTimeout.$callEvent("updateImage", imageUrl, teleportId)
 }

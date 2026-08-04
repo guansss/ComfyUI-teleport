@@ -26,6 +26,10 @@ const rewriteComfyImports = ({ isDev }: RewriteComfyImportsOptions) => {
 }
 
 export default defineConfig(({ mode }) => ({
+  base: "./", // prevent assets from being loaded from the root path
+  define: {
+    __DEV__: mode === "development" || process.argv.includes("--watch"),
+  },
   plugins: [react(), rewriteComfyImports({ isDev: mode === "development" })],
   build: {
     emptyOutDir: true,
@@ -34,13 +38,23 @@ export default defineConfig(({ mode }) => ({
       external: ["/scripts/app.js", "/scripts/api.js"],
       input: {
         main: path.resolve(__dirname, "src/main.tsx"),
-        client: path.resolve(__dirname, "src/client/client.tsx"),
+        client: path.resolve(__dirname, "src/client/index.ts"),
       },
       output: {
         // Output to the dist directory served by ComfyUI.
         dir: "../dist",
         entryFileNames: "[name].js",
-        chunkFileNames: "[name]-[hash].js",
+        chunkFileNames: (chunk) => {
+          if (chunk.isDynamicEntry) {
+            // ComfyUI automatically loads every .js file in the dist directory, which causes the client code
+            // to also be loaded in the host window. Luckily, .mjs files will not be loaded, so we can use this
+            // for dynamic chunks (the ones that will be imported by import() statement). If at some point
+            // ComfyUI starts auto-loading .mjs files, we may need to change this to a custom extension like .dynamicjs
+            // and fetch the dynamic chunks manually in the client code.
+            return "[name]-[hash].mjs"
+          }
+          return "[name]-[hash].js"
+        },
         assetFileNames: "[name][extname]",
         // Split React into a separate vendor chunk for better caching
         manualChunks: {

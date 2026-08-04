@@ -4,21 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ComfyUI Teleport Viewer</title>
-    <script>
-      if (window.location.port !== "5173") {
-        const link = document.createElement("link")
-        link.rel = "stylesheet"
-        link.href = "client.css"
-        document.head.appendChild(link)
-      }
-    </script>
+    <link rel="stylesheet" href="client.css" />
   </head>
   <body>
     <div id="root"></div>
-    <script type="module">
-      const isViteDev = window.location.port === "5173"
-      const entry = isViteDev ? "/src/client/client.tsx" : "./client.js"
-      import(entry)
-    </script>
+    <script type="module" src="./client.js"></script>
   </body>
 </html>
