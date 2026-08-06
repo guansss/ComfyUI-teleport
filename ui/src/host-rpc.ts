@@ -1,6 +1,6 @@
 import type { ClientFunctions } from "./client/client-rpc"
 import { emitter } from "./events"
-import { RPC_CHANNEL_NAME, RPC_PING_INTERVAL_MS } from "./shared"
+import { RPC_CHANNEL_NAME, RPC_PING_INTERVAL_MS, WINDOW_ID } from "./shared"
 import { createHostRpc } from "./utils/rpc"
 
 const latestImagesByTeleportId = new Map<string, string>()
@@ -60,6 +60,7 @@ export type HostFunctions = {
 
 export const hostRpc = createHostRpc<ClientFunctions, HostFunctions>(
   RPC_CHANNEL_NAME,
+  WINDOW_ID,
   hostFunctions,
   {
     clientStaleTimeoutMs: RPC_PING_INTERVAL_MS + 100,

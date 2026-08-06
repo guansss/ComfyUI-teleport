@@ -7,6 +7,17 @@ import {
   EventOptions,
 } from "birpc"
 
+interface RpcPayload {
+  role: "host" | "client"
+  clientId?: string
+  hostId?: string
+  data: unknown
+}
+
+function isRpcPayload(obj: any): obj is RpcPayload {
+  return !!obj?.role
+}
+
 const defaultOptions = {
   timeout: 1000,
   clientStaleTimeoutMs: 6500,
@@ -78,13 +89,18 @@ export function createClientRpc<
     ...defaultOptions,
     on: (on) => {
       broadcastChannel.onmessage = (e) => {
-        if (e.data?.clientId === id) {
+        if (!isRpcPayload(e.data)) return
+        if (e.data.role === "host" && e.data.clientId === id) {
           on(e.data.data)
         }
       }
     },
     post: (msg) => {
-      broadcastChannel.postMessage({ clientId: id, data: msg })
+      broadcastChannel.postMessage({
+        role: "client",
+        clientId: id,
+        data: msg,
+      } satisfies RpcPayload)
     },
     ...options,
   })
@@ -101,6 +117,7 @@ interface HostRpcOptions {
 interface ClientInfo {
   clientId: string
   lastSeenAt: number
+  handler: (e: MessageEvent) => void
   release: () => void
 }
 
@@ -109,6 +126,7 @@ export function createHostRpc<
   LocalFunctions extends Record<string, unknown> = Record<string, unknown>,
 >(
   name: string,
+  hostId: string,
   functions: LocalFunctions,
   options?: HostRpcOptions & Partial<BirpcOptions<RemoteFunctions>>,
 ) {
@@ -134,59 +152,69 @@ export function createHostRpc<
       return result
     }) as T[]
   }
+  const createClientChannel = (clientId: string) => {
+    const client: ClientInfo = {
+      clientId,
+      lastSeenAt: Date.now(),
+      handler: () => {},
+      release: () => broadcastChannel.removeEventListener("message", client.handler),
+    }
+    const channel: Channel = {
+      ...options,
+      meta: { client },
+      on: (on) => {
+        client.handler = (e: MessageEvent) => {
+          if (!isRpcPayload(e.data)) return
+          if (e.data.role === "host") return
+          if (e.data.clientId === channel.meta.client!.clientId) {
+            channel.meta.client!.lastSeenAt = Date.now()
+            on(e.data.data)
+          }
+        }
+        broadcastChannel.addEventListener("message", client.handler)
+      },
+      post: (msg) => {
+        broadcastChannel.postMessage({
+          role: "host",
+          hostId,
+          clientId,
+          data: msg,
+        } satisfies RpcPayload)
+      },
+      onTimeoutError(functionName, args) {
+        console.warn(`Timeout error for client ${clientId} on function ${String(functionName)}`)
+        removeClient(clientId)
+        return options?.onTimeoutError?.call(this, functionName, args)
+      },
+    }
+    return channel
+  }
   channels.push({
     ...options,
     // a channel without clientId for receiving messages from clients that haven't registered yet
     meta: {},
     on: () => {
       broadcastChannel.addEventListener("message", (e) => {
-        const clientId = e.data?.clientId
+        if (!isRpcPayload(e.data)) return
+        if (e.data.role === "host") {
+          // messages from other hosts are ignored, likely from a different window or tab
+          return
+        }
+        const clientId = e.data.clientId
         if (clientId) {
+          // if there's already a channel for this clientId, let it handle this message
           if (channels.some((c) => c.meta.client?.clientId === clientId)) {
-            // let the existing channel handle this message
             return
           }
-          let handler: ((e: MessageEvent) => void) | undefined
-          const channel: Channel = {
-            ...options,
-            meta: {
-              client: {
-                clientId,
-                lastSeenAt: Date.now(),
-                release: () => {
-                  if (handler) {
-                    broadcastChannel.removeEventListener("message", handler)
-                  }
-                },
-              },
-            },
-            on: (on) => {
-              handler = (e: MessageEvent) => {
-                if (e.data?.clientId === channel.meta.client!.clientId) {
-                  channel.meta.client!.lastSeenAt = Date.now()
-                  on(e.data.data)
-                }
-              }
-              broadcastChannel.addEventListener("message", handler)
-            },
-            post: (msg) => {
-              broadcastChannel.postMessage({ clientId, data: msg })
-            },
-            onTimeoutError(functionName, args) {
-              console.warn(
-                `Timeout error for client ${clientId} on function ${String(functionName)}`,
-              )
-              removeClient(clientId)
-              return options?.onTimeoutError?.call(this, functionName, args)
-            },
-          }
+          // otherwise, create a new channel for this client and pass this message to it
+          const channel = createClientChannel(clientId)
           rpc.updateChannels(() => {
             channels.push(channel)
           })
-          // reading .clients triggers an internal rpc instance to be created for this channel,
+          // reading rpc.clients triggers an internal rpc instance to be created for this channel,
           // and then the handler will be set up
           void rpc.clients
-          handler?.(e)
+          channel.meta.client!.handler(e)
           options?.onClientAdded?.(clientId)
         } else {
           // messages without clientId are ignored
@@ -203,7 +231,8 @@ export function createHostRpc<
   function removeClient(clientId: string) {
     const index = channels.findIndex((c) => c.meta.client?.clientId === clientId)
     if (index !== -1) {
-      channels.splice(index, 1)
+      const [channel] = channels.splice(index, 1)
+      channel.meta.client!.release()
       options?.onClientRemoved?.(clientId)
     }
   }
