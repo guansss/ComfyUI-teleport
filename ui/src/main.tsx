@@ -3,6 +3,7 @@ import { INodeOutputSlot, LGraphNode } from "./comfy-shims"
 import { emitter, Events } from "./events"
 import { getAvailableClients, pushImageToClient } from "./host-rpc"
 import { FALLBACK_TELEPORT_ID, getWebDir } from "./shared"
+import { intercept } from "./utils/object"
 import { ComfyApp, NodeId } from "@comfyorg/comfyui-frontend-types"
 
 interface PatchableNode extends LGraphNode {
@@ -104,22 +105,15 @@ function buildOpenWindowButton(node: LGraphNode) {
   }
   emitter.addEventListener("teleportIdChanged", onTeleportIdChanged)
 
-  const originalonConfigure = node.onConfigure
-  node.onConfigure = function (...args) {
-    if (originalonConfigure) {
-      originalonConfigure.apply(this, args)
-    }
+  intercept(node, "onConfigure", (fn) => {
+    fn?.()
     updateLabel()
-  }
-
-  const originalOnRemoved = node.onRemoved
-  node.onRemoved = function (...args) {
-    if (originalOnRemoved) {
-      originalOnRemoved.apply(this, args)
-    }
+  })
+  intercept(node, "onRemoved", (fn) => {
+    fn?.()
     emitter.removeEventListener("clientsChanged", onClientsChanged)
     emitter.removeEventListener("teleportIdChanged", onTeleportIdChanged)
-  }
+  })
 }
 
 function patchTeleportNode(teleportNode: LGraphNode) {
@@ -156,66 +150,62 @@ function patchTeleportNode(teleportNode: LGraphNode) {
     }
   }
 
-  const originalOnConnectionsChange = teleportNode.onConnectionsChange
-  teleportNode.onConnectionsChange = function (...args) {
-    const [slotType, , isConnected, link, slot] = args
-    if (originalOnConnectionsChange) {
-      originalOnConnectionsChange.apply(this, args)
-    }
+  intercept(
+    teleportNode,
+    "onConnectionsChange",
+    function (fn, slotType, index, isConnected, link, slot) {
+      fn?.()
+      const currentNode = this as LGraphNode
 
-    const currentNode = this as LGraphNode
-
-    if (mode === "next" && slotType === SLOT_TYPE_OUTPUT) {
-      // when a link is added, make this node the target node if there is no active one
-      if (link && isConnected) {
-        setActiveTargetNode(link.target_id, false)
-        return
-      }
-
-      // when a link is removed, find other connected nodes and make one of them the target node
-      const links = (slot as INodeOutputSlot).links ?? []
-      for (const linkId of links) {
-        const nextLink = app.rootGraph.getLink(linkId)
-        if (!nextLink) {
-          continue
-        }
-
-        const patchedNode = setActiveTargetNode(nextLink.target_id, true)
-        if (patchedNode) {
+      if (mode === "next" && slotType === SLOT_TYPE_OUTPUT) {
+        // when a link is added, make this node the target node if there is no active one
+        if (link && isConnected) {
+          setActiveTargetNode(link.target_id, false)
           return
         }
-      }
 
-      // when no connected nodes are found, reset the active target node
-      resetTargetNode()
-    } else if (mode === "previous" && slotType === SLOT_TYPE_INPUT) {
-      if (link && isConnected) {
-        setActiveTargetNode(link.origin_id, false)
-        return
-      }
+        // when a link is removed, find other connected nodes and make one of them the target node
+        const links = (slot as INodeOutputSlot).links ?? []
+        for (const linkId of links) {
+          const nextLink = app.rootGraph.getLink(linkId)
+          if (!nextLink) {
+            continue
+          }
 
-      const prevLinkId = currentNode.inputs?.[0]?.link
-      if (prevLinkId) {
-        const prevLink = app.rootGraph.getLink(prevLinkId)
-        if (prevLink) {
-          const patchedNode = setActiveTargetNode(prevLink.origin_id, true)
+          const patchedNode = setActiveTargetNode(nextLink.target_id, true)
           if (patchedNode) {
             return
           }
         }
+
+        // when no connected nodes are found, reset the active target node
+        resetTargetNode()
+      } else if (mode === "previous" && slotType === SLOT_TYPE_INPUT) {
+        if (link && isConnected) {
+          setActiveTargetNode(link.origin_id, false)
+          return
+        }
+
+        const prevLinkId = currentNode.inputs?.[0]?.link
+        if (prevLinkId) {
+          const prevLink = app.rootGraph.getLink(prevLinkId)
+          if (prevLink) {
+            const patchedNode = setActiveTargetNode(prevLink.origin_id, true)
+            if (patchedNode) {
+              return
+            }
+          }
+        }
+
+        resetTargetNode()
       }
+    },
+  )
 
-      resetTargetNode()
-    }
-  }
-
-  const originalOnRemoved = teleportNode.onRemoved
-  teleportNode.onRemoved = function (...args) {
-    if (originalOnRemoved) {
-      originalOnRemoved.apply(this, args)
-    }
+  intercept(teleportNode, "onRemoved", function (fn) {
+    fn?.()
     resetTargetNode()
-  }
+  })
 }
 
 function sendImageFromImageNode(teleportNode: LGraphNode, targetNode: LGraphNode) {
@@ -309,17 +299,16 @@ async function initialize() {
     },
   })
 
-  const originalQueuePrompt = api.queuePrompt
-  api.queuePrompt = async function (...args) {
-    const result = await originalQueuePrompt.apply(this, args)
-    if (result?.prompt_id) {
+  intercept(api, "queuePrompt", async function (fn) {
+    const result = await fn()
+    if (result.prompt_id) {
       const workflowKey = app.extensionManager.workflow.activeWorkflow?.key
       if (workflowKey) {
         promptToWorkflowMap.set(result.prompt_id, workflowKey)
       }
     }
     return result
-  }
+  })
 
   api.addEventListener("b_preview_with_metadata", ({ detail: { jobId, displayNodeId, blob } }) => {
     const promptId = jobId
