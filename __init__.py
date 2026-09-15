@@ -51,12 +51,6 @@ workspace_path = os.path.dirname(__file__)
 dist_path = os.path.join(workspace_path, "dist")
 dist_locales_path = os.path.join(workspace_path, "dist/locales")
 
-# Print the current paths for debugging
-print(f"ComfyUI Teleport workspace path: {workspace_path}")
-print(f"Dist path: {dist_path}")
-print(f"Dist locales path: {dist_locales_path}")
-print(f"Locales exist: {os.path.exists(dist_locales_path)}")
-
 # Register the static route for serving our React app assets
 if os.path.exists(dist_path):
     # Also register the standard ComfyUI extension web directory
@@ -69,7 +63,6 @@ if os.path.exists(dist_path):
 
         project_config = config_parser.extract_node_configuration(workspace_path)
         project_name = project_config.project.name
-        print(f"project name read from pyproject.toml: {project_name}")
     except Exception as e:
         print(
             f"Could not load project config, using default name '{project_name}': {e}"
