@@ -64,13 +64,19 @@ function buildTeleportIdWidget(node: LGraphNode) {
         .filter((id): id is string => id !== null)
     : []
   const defaultId = generateTeleportId(existingTeleportIds)
-  const newWidget = node.addWidget("text", "ID", defaultId, (value) => {
-    emitter.dispatchEvent(
-      new CustomEvent("teleportIdChanged", {
-        detail: { nodeId: node.id, teleportId: String(value) },
-      }),
-    )
-  })
+  const newWidget = node.addWidget(
+    "text",
+    "ID",
+    defaultId,
+    (value) => {
+      emitter.dispatchEvent(
+        new CustomEvent("teleportIdChanged", {
+          detail: { nodeId: node.id, teleportId: String(value) },
+        }),
+      )
+    },
+    { serialize: false },
+  )
   return newWidget
 }
 
@@ -85,9 +91,14 @@ function getTeleportId(node: LGraphNode) {
 }
 
 function buildOpenWindowButton(node: LGraphNode) {
-  const openButton = node.addWidget("button", "Open Window", "", () => {
-    openTeleportWindow(getTeleportId(node) ?? FALLBACK_TELEPORT_ID)
-  })
+  const openButton = node.addWidget(
+    "button",
+    "Open Window",
+    "",
+    () => openTeleportWindow(getTeleportId(node) ?? FALLBACK_TELEPORT_ID),
+    { serialize: false },
+  )
+  openButton.serialize = false
   const updateLabel = () => {
     const teleportId = getTeleportId(node) ?? FALLBACK_TELEPORT_ID
     const matchedClients = getAvailableClients().filter(
