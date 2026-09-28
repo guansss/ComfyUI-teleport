@@ -236,18 +236,10 @@ function sendImage(teleportNode: LGraphNode, imageUrl: string) {
       detail: `ComfyUI.Teleport: Node ${teleportNode.title}(${teleportNode.id}) has no Teleport ID, using default ID: "${FALLBACK_TELEPORT_ID}"`,
     })
   }
-  console.log("ComfyUI.Teleport: pushing image to client", teleportNode, teleportId, imageUrl)
   void pushImageToClient(imageUrl, teleportId)
 }
 
 function patchTargetNode(teleportNode: LGraphNode, targetNode: LGraphNode) {
-  console.log(
-    "ComfyUI.Teleport: patchTargetNode",
-    teleportNode,
-    targetNode,
-    getTeleportId(teleportNode),
-  )
-
   // if the node is already patched, just enable it and return
   if ((targetNode as PatchableNode)._teleportPatchEnabled !== undefined) {
     ;(targetNode as PatchableNode)._teleportPatchEnabled = true
@@ -287,7 +279,6 @@ function patchTargetNode(teleportNode: LGraphNode, targetNode: LGraphNode) {
 }
 
 function unpatchTargetNode(targetNode: LGraphNode) {
-  console.log("ComfyUI.Teleport: unpatchTargetNode", targetNode)
   if ((targetNode as PatchableNode)._teleportPatchEnabled) {
     ;(targetNode as PatchableNode)._teleportPatchEnabled = false
   }
